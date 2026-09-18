@@ -30,150 +30,235 @@ document.addEventListener('DOMContentLoaded', () => {
 
     form.addEventListener('submit', async (event) => {
 
-        event.preventDefault();
+    event.preventDefault();
+
+    const crop =
+        document.getElementById('irrigation-crop').value;
+
+    const moistureInput =
+        document.getElementById('soil-moisture');
+
+    let moisture = null;
 
 
-        const crop =
-            document.getElementById('irrigation-crop').value;
+    // ==========================================
+    // VALIDATE CROP
+    // ==========================================
 
-        const moisture =
-            Number(
-                document.getElementById('soil-moisture').value
-            );
-
-
-        if (!crop || Number.isNaN(moisture)) {
-
-            return;
-
-        }
+    if (!crop) {
+        alert('Please select a crop.');
+        return;
+    }
 
 
-        button.disabled = true;
+    button.disabled = true;
 
-        button.innerHTML =
-            '<i class="fas fa-spinner fa-spin"></i> Checking...';
+    button.innerHTML =
+        '<i class="fas fa-spinner fa-spin"></i> Checking...';
 
+
+    try {
+
+        // ==========================================
+        // FIRST PRIORITY: LIVE SENSOR
+        // ==========================================
 
         try {
 
-            const response =
-                await fetch('/api/irrigation/check', {
+            const sensorResponse =
+                await fetch('/api/sensor/data');
 
-                    method: 'POST',
+            const sensorData =
+                await sensorResponse.json();
 
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+            if (
+                sensorResponse.ok &&
+                sensorData.success &&
+                sensorData.available &&
+                sensorData.data &&
+                sensorData.data.moisture !== undefined
+            ) {
 
-                    body: JSON.stringify({
+                moisture =
+                    Number(sensorData.data.moisture);
 
-                        crop: crop,
+                // Show live sensor moisture in the input field
+                if (moistureInput) {
+                    moistureInput.value = moisture;
+                }
 
-                        moisture: moisture
-
-                    })
-
-                });
-
-
-            const data =
-                await response.json();
-
-
-            if (!response.ok || !data.success) {
-
-                throw new Error(
-                    data.message ||
-                    'Unable to check irrigation.'
-                );
-
-            }
-
-
-            // ==========================================
-            // DISPLAY RESULT
-            // ==========================================
-
-            result.style.display = 'block';
-
-
-            resultCrop.textContent =
-                data.crop;
-
-
-            resultMoisture.textContent =
-                data.soilMoisture;
-
-
-            resultThreshold.textContent =
-                data.threshold;
-
-
-            message.textContent =
-                data.message;
-
-
-            // ==========================================
-            // STATUS
-            // ==========================================
-
-            if (data.irrigationRequired) {
-
-                status.textContent =
-                    'Irrigation Required';
-
-                statusIcon.innerHTML =
-                    '<i class="fas fa-tint"></i>';
-
-                statusIcon.classList.add(
-                    'irrigation-required'
-                );
-
-                statusIcon.classList.remove(
-                    'irrigation-not-required'
+                console.log(
+                    'Live sensor moisture loaded:',
+                    moisture
                 );
 
             } else {
 
-                status.textContent =
-                    'Irrigation Not Required';
-
-                statusIcon.innerHTML =
-                    '<i class="fas fa-check-circle"></i>';
-
-                statusIcon.classList.add(
-                    'irrigation-not-required'
+                console.log(
+                    'Live moisture sensor unavailable. Using manual moisture.'
                 );
-
-                statusIcon.classList.remove(
-                    'irrigation-required'
-                );
-
             }
 
+        } catch (sensorError) {
 
-            // Scroll to result
+            console.warn(
+                'Sensor unavailable. Using manual moisture.',
+                sensorError
+            );
+        }
 
-            result.scrollIntoView({
-                behavior: 'smooth',
-                block: 'center'
+
+        // ==========================================
+        // FALLBACK: MANUAL MOISTURE
+        // ==========================================
+
+        if (
+            moisture === null ||
+            Number.isNaN(moisture)
+        ) {
+
+            moisture =
+                Number(moistureInput.value);
+
+            if (Number.isNaN(moisture)) {
+
+                alert(
+                    'Live moisture sensor is unavailable. Please enter soil moisture manually.'
+                );
+
+                return;
+            }
+
+            console.log(
+                'Manual moisture used:',
+                moisture
+            );
+        }
+
+
+        // ==========================================
+        // SEND IRRIGATION REQUEST
+        // ==========================================
+
+        const response =
+            await fetch('/api/irrigation/check', {
+
+                method: 'POST',
+
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+
+                body: JSON.stringify({
+
+                    crop: crop,
+
+                    moisture: moisture
+
+                })
+
             });
 
 
-        } catch (error) {
+        const data =
+            await response.json();
 
-            alert(error.message);
 
-        } finally {
+        if (!response.ok || !data.success) {
 
-            button.disabled = false;
+            throw new Error(
+                data.message ||
+                'Unable to check irrigation.'
+            );
+        }
 
-            button.innerHTML =
-                '<i class="fas fa-search"></i> Check Irrigation';
+
+        // ==========================================
+        // DISPLAY RESULT
+        // ==========================================
+
+        result.style.display = 'block';
+
+
+        resultCrop.textContent =
+        data.crop
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, char => char.toUpperCase());
+
+
+        resultMoisture.textContent =
+            data.soilMoisture;
+
+
+        resultThreshold.textContent =
+            data.threshold;
+
+
+        message.textContent =
+            data.message;
+
+
+        // ==========================================
+        // STATUS
+        // ==========================================
+
+        if (data.irrigationRequired) {
+
+            status.textContent =
+                'Irrigation Required';
+
+            statusIcon.innerHTML =
+                '<i class="fas fa-tint"></i>';
+
+            statusIcon.classList.add(
+                'irrigation-required'
+            );
+
+            statusIcon.classList.remove(
+                'irrigation-not-required'
+            );
+
+        } else {
+
+            status.textContent =
+                'Irrigation Not Required';
+
+            statusIcon.innerHTML =
+                '<i class="fas fa-check-circle"></i>';
+
+            statusIcon.classList.add(
+                'irrigation-not-required'
+            );
+
+            statusIcon.classList.remove(
+                'irrigation-required'
+            );
 
         }
 
-    });
 
+        // ==========================================
+        // SCROLL TO RESULT
+        // ==========================================
+
+        result.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+        });
+
+
+    } catch (error) {
+
+        alert(error.message);
+
+    } finally {
+
+        button.disabled = false;
+
+        button.innerHTML =
+            '<i class="fas fa-search"></i> Check Irrigation';
+
+    }
+
+});
 });

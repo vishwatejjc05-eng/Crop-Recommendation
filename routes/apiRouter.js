@@ -25,6 +25,10 @@ router.get(
     apiController.getKarnatakaDistricts
 );
 router.post('/recommend', apiController.postRecommendation);
+
+router.post('/sensor/update', apiController.updateSensorData);
+router.get('/sensor/data', apiController.getSensorData);
+
 router.post(
     '/irrigation/check',
     apiController.checkIrrigation

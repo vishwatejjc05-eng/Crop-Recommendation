@@ -6,6 +6,15 @@ const {
     KARNATAKA_DISTRICTS
 } = require('../services/apmcService');
 
+// Latest live sensor data from Arduino
+let latestSensorData = {
+    nitrogen: null,
+    phosphorus: null,
+    potassium: null,
+    moisture: null,
+    updatedAt: null
+};
+
 exports.getKarnatakaDistricts = (req, res) => {
 
     res.json({
@@ -555,6 +564,97 @@ const IRRIGATION_THRESHOLDS = {
     turmeric: 35,
     watermelon: 35,
     wheat: 30
+};
+
+
+// Receive live sensor data from Arduino/Python bridge
+exports.updateSensorData = async (req, res) => {
+    try {
+        const { nitrogen, phosphorus, potassium, moisture } = req.body;
+
+        if (
+            nitrogen === undefined ||
+            phosphorus === undefined ||
+            potassium === undefined ||
+            moisture === undefined
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: 'N, P, K and moisture values are required.'
+            });
+        }
+
+        const n = Number(nitrogen);
+        const p = Number(phosphorus);
+        const k = Number(potassium);
+        const m = Number(moisture);
+
+        if (
+            [n, p, k, m].some(value => Number.isNaN(value))
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: 'Sensor values must be numbers.'
+            });
+        }
+
+        if (m < 0 || m > 100) {
+            return res.status(400).json({
+                success: false,
+                message: 'Moisture must be between 0 and 100%.'
+            });
+        }
+
+        latestSensorData = {
+            nitrogen: n,
+            phosphorus: p,
+            potassium: k,
+            moisture: m,
+            updatedAt: new Date()
+        };
+
+        res.status(200).json({
+            success: true,
+            message: 'Sensor data updated successfully.',
+            data: latestSensorData
+        });
+
+    } catch (error) {
+        console.error('Sensor update error:', error.message);
+
+        res.status(500).json({
+            success: false,
+            message: 'Unable to update sensor data.'
+        });
+    }
+};
+
+
+// Get latest live sensor data
+exports.getSensorData = async (req, res) => {
+    try {
+        if (latestSensorData.updatedAt === null) {
+            return res.status(200).json({
+                success: true,
+                available: false,
+                message: 'No sensor data available yet.'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            available: true,
+            data: latestSensorData
+        });
+
+    } catch (error) {
+        console.error('Sensor read error:', error.message);
+
+        res.status(500).json({
+            success: false,
+            message: 'Unable to read sensor data.'
+        });
+    }
 };
 
 // ==========================================

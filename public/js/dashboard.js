@@ -722,27 +722,135 @@ if (fetchBtn) {
         'click',
         async () => {
 
+            const soilPhInput =
+    document.getElementById('soilPh');
+
+const nitrogenInput =
+    document.getElementById('nitrogen');
+
+const phosphorusInput =
+    document.getElementById('phosphorus');
+
+const potassiumInput =
+    document.getElementById('potassium');
+
             const farmId =
                 farmIdInput.value
                     .trim()
                     .toUpperCase();
 
+            // ------------------------------------------
+            // First priority: LIVE SENSOR
+            // ------------------------------------------
+
+            try {
+
+                fetchBtn.disabled = true;
+                fetchBtn.textContent = 'Checking Sensor...';
+
+                const sensorResponse =
+                    await fetch('/api/sensor/data');
+
+                const sensorData =
+                    await sensorResponse.json();
+
+                if (
+                    sensorResponse.ok &&
+                    sensorData.success &&
+                    sensorData.available &&
+                    sensorData.data
+                ) {
+
+                    // ------------------------------------------
+                    // SENSOR AVAILABLE
+                    // ------------------------------------------
+
+                    if (nitrogenInput)
+                        nitrogenInput.value =
+                            sensorData.data.nitrogen;
+
+                    if (phosphorusInput)
+                        phosphorusInput.value =
+                            sensorData.data.phosphorus;
+
+                    if (potassiumInput)
+                        potassiumInput.value =
+                            sensorData.data.potassium;
+
+                    console.log(
+                        'Live sensor N/P/K values loaded:',
+                        sensorData.data
+                    );
+
+                    // ------------------------------------------
+                    // pH priority:
+                    // Keep manual value if already entered.
+                    // Do NOT overwrite it with Farm ID.
+                    // ------------------------------------------
+
+                    if (
+                        soilPhInput &&
+                        !soilPhInput.value.trim()
+                    ) {
+
+                        console.log(
+                            'pH is empty. Enter pH manually.'
+                        );
+                    }
+
+                    fetchBtn.textContent = 'Fetched';
+
+                    console.log(
+                        'Sensor available. Farm ID was not used.'
+                    );
+
+                    return;
+                }
+
+                // ------------------------------------------
+                // SENSOR NOT AVAILABLE
+                // ------------------------------------------
+
+                console.log(
+                    'Live sensor unavailable. Falling back to Farm ID.'
+                );
+
+            } catch (sensorError) {
+
+                console.warn(
+                    'Sensor unavailable. Falling back to Farm ID.',
+                    sensorError
+                );
+            }
+
+
+            // ------------------------------------------
+            // FALLBACK: FARM ID
+            // ------------------------------------------
+
             if (!farmId) {
 
-                alert('Please enter a Farm ID.');
+                alert(
+                    'Live sensor is unavailable. Please enter a Farm ID.'
+                );
+
+                fetchBtn.disabled = false;
+                fetchBtn.textContent = 'Fetch';
 
                 return;
             }
 
             try {
 
-                fetchBtn.disabled = true;
-                fetchBtn.textContent = 'Fetching...';
+                fetchBtn.textContent = 'Fetching Farm...';
 
                 const response =
                     await fetch(`/api/farm/${farmId}`);
 
-                console.log('Farm API status:', response.status);
+                console.log(
+                    'Farm API status:',
+                    response.status
+                );
 
                 if (!response.ok) {
 
@@ -757,7 +865,6 @@ if (fetchBtn) {
                         throw new Error(
                             'Failed to fetch farm data.'
                         );
-
                     }
 
                     return;
@@ -766,56 +873,36 @@ if (fetchBtn) {
                 const farmData =
                     await response.json();
 
-                console.log('Farm data received:', farmData);
-
-
-                // ==========================================
-                // FILL FARM SENSOR VALUES
-                // ==========================================
-
-                const soilPhInput =
-                    document.getElementById('soilPh');
-
-                const nitrogenInput =
-                    document.getElementById('nitrogen');
-
-                const phosphorusInput =
-                    document.getElementById('phosphorus');
-
-                const potassiumInput =
-                    document.getElementById('potassium');
-
-
-                if (soilPhInput)
-                    soilPhInput.value = farmData.soilPh;
-
-                if (nitrogenInput)
-                    nitrogenInput.value = farmData.nitrogen;
-
-                if (phosphorusInput)
-                    phosphorusInput.value = farmData.phosphorus;
-
-                if (potassiumInput)
-                    potassiumInput.value = farmData.potassium;
-
-
                 console.log(
-                    'Farm sensor values filled successfully.'
+                    'Farm data received:',
+                    farmData
                 );
 
 
-                // ==========================================
-                // IMPORTANT
-                // ==========================================
-                // Temperature and rainfall are NOT stored
-                // in the Farm API.
-                //
-                // They continue to come from:
-                // Seasonal Temperature API
-                // Historical Rainfall API
-                //
-                // So we do NOT modify them here.
+                // ------------------------------------------
+                // FARM ID FALLBACK VALUES
+                // ------------------------------------------
 
+                if (soilPhInput)
+                    soilPhInput.value =
+                        farmData.soilPh;
+
+                if (nitrogenInput)
+                    nitrogenInput.value =
+                        farmData.nitrogen;
+
+                if (phosphorusInput)
+                    phosphorusInput.value =
+                        farmData.phosphorus;
+
+                if (potassiumInput)
+                    potassiumInput.value =
+                        farmData.potassium;
+
+
+                console.log(
+                    'Farm ID fallback values loaded successfully.'
+                );
 
             } catch (error) {
 
@@ -825,13 +912,12 @@ if (fetchBtn) {
                 );
 
                 alert(
-                    'An error occurred. Please check the browser console.'
+                    'An error occurred while fetching Farm ID data.'
                 );
 
             } finally {
 
                 fetchBtn.disabled = false;
-
                 fetchBtn.textContent = 'Fetch';
 
             }
